@@ -1,24 +1,9 @@
-<div align="center">
+<p align="center">
   <a href="https://github.com/max31337/ClinkKit">
-    <picture>
-      <!-- Dark mode -->
-      <source
-        media="(prefers-color-scheme: dark)"
-        srcset="dark-banner.svg">
-
-      <!-- Light mode -->
-      <source
-        media="(prefers-color-scheme: light)"
-        srcset="light-banner.svg">
-
-      <!-- Fallback -->
-      <img
-        src="light-banner.svg"
-        alt="ClinkKit"
-        width="700">
-    </picture>
+    <img src="light-banner.svg#gh-light-mode-only" width="700" alt="ClinkKit">
+    <img src="dark-banner.svg#gh-dark-mode-only" width="700" alt="ClinkKit">
   </a>
-</div>
+</p>
 
 **Modern productivity toolkit for Clink**  
 *Currently featuring HistoryGuard: intelligent command-history protection for Windows CMD.*
