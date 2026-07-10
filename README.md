@@ -11,6 +11,10 @@
 
 ClinkKit is a modular Lua toolkit for [Clink](https://chrisant996.github.io/clink/) on Windows CMD. Its first implemented feature is **HistoryGuard**, which keeps typos, accidental input, and unwanted commands out of persistent Clink history.
 
+<p align="center">
+  🌐 <a href="https://clinkkit.pages.dev/">Documentation & Website</a>
+</p>
+
 ```text
 C:\repo> git stauts
 HistoryGuard: didn't save to history. Did you mean:  git status
