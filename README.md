@@ -331,11 +331,11 @@ The test suite currently contains **121 automated tests** organized into **30 te
 - Multi-word commands and quoted arguments
 - Comprehensive fail-open behavior
 
-A passing test run should report **121 passed, 0 failed**.al-world scenarios, edge cases, stress tests, and error handling
+A passing test run should report **121 passed, 0 failed**. Composed of real-world scenarios, edge cases, stress tests, and error handling
 
 ### Manual Verification
 
-See [`tests/manual_tests.md`](tests/manual_tests.md) for an end-to-end
+See [`tests/manual_tests.md`](clinkkit/tests/manual_tests.md) for an end-to-end
 verification checklist covering:
 
 - Live HistoryGuard interception
