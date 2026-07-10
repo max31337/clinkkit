@@ -29,7 +29,10 @@ _G.clink = {
     end,
     onhistory = function(handler)
         _G.mock_onhistory_handler = handler
-    end
+    end,
+    ondisplayedinput = function(handler)
+        _G.mock_ondisplayedinput_handler = handler
+    end,
 }
 
 -- 3. Load modules
@@ -50,6 +53,16 @@ local function assert_eq(actual, expected, msg)
         print(string.format("❌ FAIL: %s\n   Expected: %s\n   Actual:   %s", tostring(msg), tostring(expected), tostring(actual)))
     end
 end
+
+-- HistoryGuard applies `clink set hg.*` changes after the command finishes,
+-- at the next displayed prompt.
+settings_store["hg.max_distance"] = 2
+_G.mock_onhistory_handler("clink set hg.max_distance 1")
+settings_store["hg.max_distance"] = 1
+_G.mock_ondisplayedinput_handler()
+assert_eq(config.max_distance, 1, "hg setting reloads after clink set")
+settings_store["hg.max_distance"] = 2
+config.reload()
 
 local function table_count(t)
     local n = 0

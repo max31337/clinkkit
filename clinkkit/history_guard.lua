@@ -42,6 +42,7 @@ local config     = require("config")
 local logger     = require("logger")
 local evaluator = require("history_evaluator")
 local evaluate_line = evaluator.evaluate_line
+local utils      = require("utils")
 require("commands")
 
 --------------------------------------------------------------------------------
@@ -60,10 +61,30 @@ end
 -- clink.onhistory glue
 --------------------------------------------------------------------------------
 
+-- `clink set` runs as an external command, so the setting is not committed
+-- until after this onhistory callback returns.  Mark HG setting changes here
+-- and reload config at the following prompt, after the command has finished.
+-- This deliberately refreshes configuration only; reloading all Lua scripts
+-- would duplicate callbacks and discard useful in-memory caches.
+local config_reload_pending = false
+
+local function is_historyguard_setting_command(line)
+    local words = utils.split_words(utils.trim(line))
+    return words[1] and words[2] and words[3]
+        and words[1]:lower() == "clink"
+        and words[2]:lower() == "set"
+        and words[3]:lower():match("^hg%.") ~= nil
+end
+
 local function on_history_event(line)
     -- Never let a bug here break the user's shell: worst case, keep the
     -- history entry (fail open), per the project's error-handling policy.
     logger.debug("on_history_event called with line: %s", tostring(line))
+
+    if is_historyguard_setting_command(line) then
+        config_reload_pending = true
+    end
+
     local ok, keep, reason, suggestion = pcall(evaluate_line, line)
     if not ok then
         logger.warn("evaluate_line() error: %s -- keeping entry", tostring(keep))
@@ -94,6 +115,20 @@ local function on_history_event(line)
 end
 
 clink.onhistory(on_history_event)
+
+if clink.ondisplayedinput then
+    clink.ondisplayedinput(function()
+        if not config_reload_pending then return end
+        config_reload_pending = false
+
+        local ok, err = pcall(config.reload)
+        if not ok then
+            logger.warn("Failed to reload HistoryGuard settings: %s", tostring(err))
+        else
+            logger.debug("Reloaded HistoryGuard settings after clink set.")
+        end
+    end)
+end
 
 logger.info(
     "HistoryGuard loaded (max_distance=%d)",

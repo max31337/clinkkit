@@ -27,6 +27,28 @@ local utils = require("utils")
 
 local history_cleanup = {}
 
+-- The cleanup shortcut can be invoked repeatedly in one Clink session.  Keep
+-- its decisions in memory so an unchanged history entry is evaluated only
+-- once.  This matters when the optional executable and flag checks are on,
+-- since those can invoke `where` and command help discovery.
+local evaluation_cache = { key = nil, entries = {} }
+
+local function cleanup_config_key()
+    -- Include every evaluator setting that can alter a cleanup decision.  A
+    -- changed setting naturally starts a fresh cache without needing a reload.
+    local names = {
+        "hg.typo_detect", "hg.key_smash", "hg.unknown_exe",
+        "hg.subcmd_detect", "hg.strict_subcommands", "hg.option_detect",
+        "hg.max_distance", "hg.whitelist", "hg.blacklist", "hg.cache_days",
+        "hg.cleanup_unknown_exe", "hg.cleanup_option_detect",
+    }
+    local values = {}
+    for _, name in ipairs(names) do
+        values[#values + 1] = name .. "=" .. tostring(settings.get(name))
+    end
+    return table.concat(values, "\n")
+end
+
 
 --------------------------------------------------------------------------------
 local function locate_history_file()
@@ -193,6 +215,12 @@ function history_cleanup.run(opts)
         config.enable_option_detection = false
     end
 
+    local cache_key = cleanup_config_key()
+    if evaluation_cache.key ~= cache_key then
+        evaluation_cache.key = cache_key
+        evaluation_cache.entries = {}
+    end
+
     local out_lines = {}
     local seen_exact = {}
     local removed, kept = 0, 0
@@ -214,11 +242,24 @@ function history_cleanup.run(opts)
             -- (history.time_stamp adds one); HistoryGuard only cares about
             -- the command text itself.
             local command_text = line:gsub("^%d+%s+", "")
+            local duplicate = seen_exact[command_text]
 
-            local eval_ok, keep, reason, suggestion =
-                pcall(evaluator.evaluate_line, command_text)   
-                
-                local duplicate = seen_exact[command_text]
+            local cached = evaluation_cache.entries[command_text]
+            local eval_ok, keep
+            if cached then
+                eval_ok, keep = cached.eval_ok, cached.keep
+            else
+                eval_ok, keep = pcall(evaluator.evaluate_line, command_text)
+                -- Evaluation errors are deliberately not cached.  That
+                -- preserves fail-open behavior if an intermittent issue
+                -- resolves before the next cleanup run.
+                if eval_ok then
+                    evaluation_cache.entries[command_text] = {
+                        eval_ok = eval_ok,
+                        keep = keep,
+                    }
+                end
+            end
 
             if not eval_ok then
                 -- Fail open: never destroy a line we couldn't evaluate.
