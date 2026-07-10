@@ -6,345 +6,217 @@
   </a>
 </div>
 
-**Modern productivity toolkit for Clink.**  
-*Featuring **HistoryGuard**, intelligent command history protection.*
+**Modern productivity toolkit for Clink**  
+*Currently featuring HistoryGuard: intelligent command-history protection for Windows CMD.*
 
-</div>
+## Overview
 
-**ClinkKit** is a modular toolkit for extending **Clink** on Windows CMD with
-quality-of-life improvements, productivity tools, and developer utilities.
+ClinkKit is a modular Lua toolkit for [Clink](https://chrisant996.github.io/clink/) on Windows CMD. Its first implemented feature is **HistoryGuard**, which keeps typos, accidental input, and unwanted commands out of persistent Clink history.
 
-The first feature included in ClinkKit is **HistoryGuard**, which prevents
-typo'd, accidental, and unwanted commands from polluting your persistent
-command history while providing tools to clean up existing history.
-
-```
-C:\repos> git stauts
+```text
+C:\repo> git stauts
 HistoryGuard: didn't save to history. Did you mean:  git status
-'stauts' is not recognized as an internal or external command...
+git: 'stauts' is not a git command. See 'git --help'.
 ```
 
-The command still runs (or fails) exactly as CMD would normally handle it.
-HistoryGuard only ever changes what gets *saved to history* — it never
-blocks or alters execution.
+HistoryGuard does not block or rewrite command execution. CMD and the invoked program still handle the command normally; HistoryGuard only decides whether Clink saves it in history.
 
----
+## Features available now
 
-## Current Architecture and how it works
+### HistoryGuard
 
-```
-ClinkKit
-│
-├── history_guard.lua        Current project entry point
-│
-├── history_evaluator.lua    Shared evaluation engine
-├── history_cleanup.lua      Cleanup utilities
-├── commands.lua             Public commands
-├── keybindings.lua          Hotkey registration
-│
-├── config.lua
-├── logger.lua
-├── utils.lua
-├── executable.lua
-├── command_cache.lua
-└── levenshtein.lua
-```
+- Excludes commands in a configurable blacklist from history.
+- Detects punctuation-only input and conservative keyboard-smash patterns.
+- Detects unknown executables, with a nearby executable suggestion when available.
+- Detects first-subcommand typos, such as `git stauts`.
+- Detects long-option typos, such as `rg --hlep`.
+- Offers optional strict subcommand filtering for unrelated input such as `git asdfgh`.
+- Cleans existing persisted history, with backups, duplicate removal, dry runs, and an optional `Alt-Ctrl-H` shortcut.
+- Fails open: an internal HistoryGuard error keeps the history entry rather than disrupting your shell.
 
-`evaluate_line(line)` lives in `history_evaluator.lua` and serves as the
-shared decision engine used by both the live HistoryGuard module and the
-history cleanup utility. Keeping the decision logic in one place guarantees
-that commands rejected during live execution are evaluated identically during
-offline cleanup.
+### Decision order
 
-### Decision pipeline (in order)
+For each accepted input line, HistoryGuard checks:
 
-1. Blank line → always kept (untouched).
-2. Blacklisted command → rejected silently.
-3. Keyboard-smash / punctuation-only → rejected.
-4. Unknown executable (not on PATH, not a CMD builtin, not whitelisted,
-   not a doskey alias, not a path) → rejected, with a suggestion if a
-   close match exists.
-5. Subcommand typo (`git stauts`) → rejected, with suggestion.
-6. Option/flag typo (`rg --hlep`) → rejected, with suggestion.
-7. Otherwise → kept.
-
-Every step is individually toggleable in config, and **any unexpected
-error anywhere in the pipeline causes the line to be kept** (fail-open),
-per the project's error-handling requirement — HistoryGuard should never
-be the reason your shell misbehaves.
-
----
+1. Blank input is kept.
+2. Blacklisted commands are excluded silently.
+3. Punctuation-only input and keyboard-smash patterns are excluded.
+4. Unknown executables are excluded when enabled.
+5. First-subcommand typos and strict subcommand checks are applied when enabled.
+6. Long-option typos are checked when enabled.
+7. All remaining lines are kept.
 
 ## Requirements
 
-- Clink **v1.5.13 or newer** (for `clink.onhistory()`); v1.9.27+ recommended.
-  Check your version with `clink --version`.
-- Windows CMD with Clink injected (see [chrisant996/clink](https://github.com/chrisant996/clink)).
+- Windows CMD with Clink injected.
+- Clink 1.5.13 or later for the history callback; Clink 1.9.27 or later is recommended.
 
-> **Before relying on this in production**, run the automated test suite
-> (`lua run_tests.lua` in the tests folder) or manually verify with the
-> step-by-step checklist in `tests/manual_tests.md` against your installed
-> Clink version.
+From a Clink-enabled CMD prompt:
 
----
+```cmd
+clink --version
+```
 
 ## Installation
 
-1. Copy the whole `clinkkit/` folder into your Clink scripts directory.
-   The simplest option is directly under your Clink profile:
-   ```
-   %LOCALAPPDATA%\clink\clinkkit\
-   ```
-   (Find your exact profile directory by running `clink info`.)
-2. Restart your CMD session, or press `Ctrl-X Ctrl-R` to reload Lua scripts.
-3. Confirm it loaded: `clink set hg.max_distance` should print `2`.
+Copy both the loader and module directory into your Clink profile. The usual profile is `%LOCALAPPDATA%\clink`; use `clink info` to confirm yours.
 
-No extra dependencies — pure Lua 5.2, the version Clink embeds.
+```text
+%LOCALAPPDATA%\clink\00_clinkkit.lua
+%LOCALAPPDATA%\clink\clinkkit\
+```
 
----
+`00_clinkkit.lua` loads the modules in `clinkkit`, so both are required. Start a new CMD session or press `Ctrl-X`, then `Ctrl-R` to load an updated installation.
+
+Confirm that HistoryGuard registered its settings:
+
+```cmd
+clink set hg.max_distance
+```
+
+No separate Lua installation is needed to use ClinkKit; Clink provides the runtime.
 
 ## Configuration
 
-All options are standard Clink settings (`clink set name value`), stored
-in your normal `clink_settings` file:
+All options are normal Clink settings:
+
+```cmd
+clink set hg.max_distance 2
+```
+
+Once this version of ClinkKit is loaded, a command of the form `clink set hg.* ...` refreshes HistoryGuard configuration at the next prompt. It reloads settings only, not all Lua scripts, so ordinary setting changes do not require restarting CMD. Reload scripts once after changing ClinkKit files or upgrading.
 
 | Setting | Default | Description |
-|---|---|---|
-| `hg.typo_detect` | `true` | Master switch for typo checks |
-| `hg.key_smash` | `true` | `asdfasdf`, `;;;;`, etc. |
-| `hg.unknown_exe` | `true` | `asdf`, `gitt`, `pyhton` |
-| `hg.subcmd_detect` | `true` | `git stauts` |
-| `hg.option_detect` | `true` | `rg --hlep` |
-| `hg.enable_cleanup` | `true` | Allows `history_cleanup.lua` to run |
-| `hg.max_distance` | `2` | Max Levenshtein distance treated as a typo |
-| `hg.whitelist` | `git,go,cargo,python,py,node,npm,pnpm,yarn,dotnet,code,nvim,vim,rg,fd,docker,kubectl,gh` | Comma list, always known-good executables |
-| `hg.blacklist` | `cls,history,exit,clear` | Comma list, always excluded from history |
-| `hg.verbose_logging` | `WARN` | `OFF`, `WARN`, `INFO`, `DEBUG` |
-| `hg.cleanup_on_start` | `false` | Run a cleanup pass on every Clink start |
-| `hg.cache_days` | `7` | How often subcommand/flag caches refresh |
-| `hg.show_suggestions` | `true` | Print "Did you mean" messages |
+|---|---:|---|
+| `hg.typo_detect` | `true` | Master switch for subcommand and long-option typo checks. |
+| `hg.key_smash` | `true` | Exclude punctuation-only input and conservative keyboard-smash patterns. |
+| `hg.unknown_exe` | `true` | Exclude unrecognized executable names. Paths, CMD builtins, doskey aliases, and whitelisted names are allowed. |
+| `hg.subcmd_detect` | `true` | Check the first non-option word after a command as a subcommand. |
+| `hg.strict_subcommands` | `false` | Exclude an unknown discovered subcommand even without a close suggestion. May reject aliases, plugins, or extensions. |
+| `hg.option_detect` | `true` | Check `--long-option` spelling. |
+| `hg.max_distance` | `2` | Maximum Levenshtein distance for a typo suggestion. A letter transposition counts as two edits. |
+| `hg.whitelist` | `git,go,cargo,python,py,node,npm,pnpm,yarn,dotnet,code,nvim,vim,rg,fd,docker,kubectl,gh,clink` | Comma-separated executable names treated as known. |
+| `hg.blacklist` | `cls,history,exit,clear` | Comma-separated command names never saved to history. |
+| `hg.show_suggestions` | `true` | Print an explanation or suggestion when a non-blacklisted line is excluded. |
+| `hg.verbose_logging` | `WARN` | Logging level: `OFF`, `WARN`, `INFO`, or `DEBUG`. Messages go to Clink's log. |
+| `hg.enable_cleanup` | `true` | Allow history cleanup. |
+| `hg.cleanup_on_start` | `false` | Run one cleanup pass after the first displayed prompt. |
+| `hg.cache_days` | `7` | Days before command help caches are refreshed. |
+| `hg.cleanup_unknown_exe` | `false` | Enable executable checks during cleanup. Slower because it can invoke `where`. |
+| `hg.cleanup_option_detect` | `false` | Enable option checks during cleanup. Slower because it can build command-help caches. |
+| `hg.enable_cleanup_keybinding` | `false` | Enable `Alt-Ctrl-H` cleanup. Reload scripts after enabling it. |
 
-### Example: stricter setup
+### Strict subcommands
 
-```cmd
-clink set hg.max_distance 1
-clink set hg.whitelist "git,go,cargo,rg,fd,dotnet"
-clink set hg.verbose_logging INFO
-```
-
-### Example: quieter setup (typo blocking only, no suggestions)
+Strict mode is useful when you want `git asdfgh` excluded from history even though it is not close enough to suggest `git add` or another real command:
 
 ```cmd
-clink set hg.show_suggestions false
-clink set hg.option_detect false
+clink set hg.strict_subcommands true
+clink set hg.max_distance 2
 ```
 
----
+Strict mode only acts when ClinkKit has discovered a non-empty subcommand list from the tool's help output. It can exclude legitimate Git aliases, external subcommands, and plugin commands; disable it if you rely on those.
 
-# Project Roadmap
+## Cleanup existing history
 
-ClinkKit is designed as a collection of independent modules that extend the
-Windows CMD experience.
+HistoryGuard can scan the active persisted `clink_history`, remove entries rejected by the current cleanup rules, remove exact duplicates, and preserve valid entry order.
 
-Current modules:
+Every non-dry cleanup creates a timestamped backup first:
 
-- ✅ HistoryGuard
-  - Live history filtering
-  - History cleanup
-  - Typo detection
-  - Keyboard-smash detection
-
-Planned modules include:
-
-- Aliases
-  - User-defined aliases
-  - Import/export aliases
-  - Alias management commands
-
-- Utilities
-  - Safe `trash` command
-  - `mkcd`
-  - File and directory helpers
-  - Additional productivity commands
-
-- More extensions as the project evolves.
-
-HistoryGuard currently serves as ClinkKit's entry point because it is the
-first implemented feature. As additional modules are added, the project will
-be refactored into a lightweight bootstrapper responsible for loading each
-feature independently.
-
----
-
-## Cleaning up existing history
-
-Bind a key in your `.inputrc`:
-
-```
-M-C-h: "luafunc:historyguard_run_cleanup"
+```text
+%LOCALAPPDATA%\clink\historyguard_backups\
 ```
 
-Then press `Alt-Ctrl-H` at any prompt to run cleanup interactively (it
-prints every line it removes). A timestamped backup of your
-`clink_history` file is always written first (`clink_history.bak_<timestamp>`),
-and `hg.enable_cleanup` must be `true`.
+Enable the optional hotkey:
 
-You can also call it directly for a dry run, e.g. from the Lua debugger
-(`clink set lua.debug true`, then `pause()` a script and evaluate):
+```cmd
+clink set hg.enable_cleanup_keybinding true
+```
+
+Reload scripts once, then press `Alt-Ctrl-H` at a Clink prompt. The binding invokes `historyguard_run_cleanup` and is also added to `.inputrc` when enabled.
+
+For a dry run from a Lua debugging context:
 
 ```lua
 require("history_cleanup").run({ dry_run = true })
 ```
 
-After cleanup, running `history compact` (a builtin Clink alias for
-`clink history compact`) physically shrinks the file.
+Dry runs report what would change but do not write the history file or create a backup.
 
----
+### Cleanup speed
+
+Cleanup scans the persisted history each time it runs. The first run is expected to be slower when any of these are enabled:
+
+```cmd
+clink set hg.cleanup_unknown_exe true
+clink set hg.cleanup_option_detect true
+clink set hg.max_distance 10
+```
+
+Command-help discovery is cached on disk under `%LOCALAPPDATA%\clink\historyguard_cache\`. Unchanged entries are also cached in memory for repeated cleanup runs in the same CMD session.
 
 ## Limitations
 
-- Subcommand/flag discovery relies on each tool's own `--help`/`help -a`
-  output, which is free-form text; discovery uses conservative pattern
-  matching and may miss some subcommands/flags for tools with unusual
-  help formatting. Extend `DISCOVERY` in `command_cache.lua` to add more
-  tools or refine patterns.
-- Keyboard-smash detection is intentionally conservative (repeated /
-  low-diversity characters only) — the unknown-executable check is the
-  real safety net for things like `asdf` or `qqqq`.
-- Argument/path typos that aren't the command or first subcommand (e.g.
-  `cd my_projets`) are out of scope; catching arbitrary filesystem-path
-  typos reliably would require a much larger dictionary/heuristic and
-  risks false positives on legitimately new directory names.
-- `history_cleanup.lua` edits the `clink_history` file directly using its
-  documented `|`-prefix deletion convention. If Clink's internal history
-  file format ever changes in a future version, re-verify against
-  `clink history --help` / the Saved Command History docs before running
-  cleanup on an upgraded install.
-- Performance: the executable-existence PATH index is built once per
-  session (lazily, on first use) and cached; typo/flag caches persist to
-  disk under `%LOCALAPPDATA%\clink\historyguard_cache\`. Interception
-  itself does no disk or process I/O on the fast path (whitelisted/known
-  commands).
+- HistoryGuard checks the executable, first subcommand, and long options. It does not validate ordinary arguments, paths, or nested subcommands.
+- Help output is free-form text, so subcommand and option discovery is deliberately conservative. Some tools may have no discovered entries.
+- Keyboard-smash detection is intentionally conservative. Unknown-executable detection is the broader protection for names such as `asdf`.
+- A large `hg.max_distance` makes more distant suggestions possible but costs more comparison work. Prefer strict mode for rejecting unrelated subcommands.
+- Cleanup writes Clink's documented history format directly. Keep the automatic backups and re-test after a major Clink upgrade.
 
----
+## Project roadmap
 
-# Future Architecture
+ClinkKit is intentionally broader than HistoryGuard. HistoryGuard is the first module and current entry point; it will eventually become one independently loadable feature among several.
 
-ClinkKit is intended to evolve into a modular toolkit rather than a single
-feature.
+Planned modules include:
 
-The long-term structure is expected to resemble:
+- **Aliases**
+  - User-defined aliases
+  - Import and export
+  - Alias management commands
+- **Utilities**
+  - Safe `trash` command
+  - `mkcd`
+  - File and directory helpers
+  - Additional productivity commands
 
-```
+The long-term design is a lightweight bootstrapper plus independently loadable feature modules sharing configuration, logging, caching, and utilities.
+
+```text
 clinkkit/
-│
-├── bootstrap.lua
-│
-├── historyguard/
-│   ├── history_guard.lua
-│   ├── history_evaluator.lua
-│   └── history_cleanup.lua
-│
-├── aliases/
-│
-├── utilities/
-│   ├── trash.lua
-│   ├── mkcd.lua
-│   └── ...
-│
-├── commands/
-├── keybindings/
-└── shared/
+  bootstrap.lua                 Future loader
+  historyguard/                 Current feature, planned module layout
+  aliases/                      Planned
+  utilities/                    Planned
+  shared/                       Planned shared helpers
 ```
 
-Each feature will be independently loadable while sharing common utilities
-such as logging, configuration, caching, and helper functions.
+## Project structure today
 
----
-
-# Developer Guide
-
-ClinkKit is organized around small, reusable feature modules.
-
-Core principles:
-
-- Each feature should have a single responsibility.
-- Shared functionality belongs in reusable modules.
-- Features communicate through well-defined public APIs.
-- Avoid circular dependencies.
-- Fail open whenever possible to avoid interfering with the user's shell.
-
-Current feature modules:
-
-- HistoryGuard
-
-Planned feature modules:
-
-- Aliases
-- Utilities
-- Additional productivity extensions
-
----
+```text
+00_clinkkit.lua          Profile loader
+clinkkit/
+  history_guard.lua      Clink event handlers and startup
+  history_evaluator.lua  Shared history decision pipeline
+  history_cleanup.lua    Persisted-history cleanup
+  command_cache.lua      Help-output discovery and disk cache
+  executable.lua         Executable lookup and suggestions
+  config.lua             Clink settings
+  keybindings.lua        Optional cleanup hotkey
+  tests/                 Automated and manual verification
+```
 
 ## Testing
 
-### Automated Tests
-
-Run the complete automated test suite:
+Run the automated suite from the `clinkkit\tests` directory:
 
 ```cmd
-cd tests
 lua run_tests.lua
 ```
 
-A successful run should produce output similar to:
+The suite uses a standard Lua interpreter with mocked Clink APIs. The passing-assertion count can grow over time; success means it ends with `0 failed`.
 
-```text
---------------------------------------------------
-Running HistoryGuard Unit Tests...
---------------------------------------------------
-...
---------------------------------------------------
-Testing completed: 121 passed, 0 failed
---------------------------------------------------
-```
-
-The test suite currently contains **121 automated tests** organized into **30 test groups**, covering:
-
-- Levenshtein distance implementation
-- Tokenizer and string utility functions
-- Keyboard-smash detection
-- History evaluation pipeline (`evaluate_line`)
-- Empty and blank-line handling
-- Punctuation-only detection
-- Whitelist and blacklist behavior
-- Unknown executable detection
-- Case-insensitive command matching
-- Configuration loading and reloading
-- Command suggestion quality
-- Executable discovery
-- Command cache generation
-- Logger functionality
-- Integration scenarios
-- Performance and stress tests
-- Boundary and edge cases
-- Multi-word commands and quoted arguments
-- Comprehensive fail-open behavior
-
-A passing test run should report **121 passed, 0 failed**. Composed of real-world scenarios, edge cases, stress tests, and error handling
-
-### Manual Verification
-
-See [`tests/manual_tests.md`](clinkkit/tests/manual_tests.md) for an end-to-end
-verification checklist covering:
-
-- Live HistoryGuard interception
-- Command suggestion behavior
-- History cleanup
-- Hotkey registration
-- Configuration options
-- Error handlingation checklist covering live end-to-end behavior and cleanup functionality.
+For end-to-end checks in a real Clink session, see [tests/manual_tests.md](tests/manual_tests.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

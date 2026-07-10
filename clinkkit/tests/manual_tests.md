@@ -1,241 +1,138 @@
-# HistoryGuard — Test Guide
+# HistoryGuard manual test guide
 
-HistoryGuard is currently the primary feature of **ClinkKit**. This guide
-covers both automated and manual verification of HistoryGuard's behavior.
-As ClinkKit grows to include additional features (such as aliases and
-command-line utilities), this guide will be expanded with feature-specific
-test sections.
+HistoryGuard is ClinkKit's current feature. This guide verifies its real Clink behavior; future ClinkKit modules, including aliases and utilities, will add their own test sections.
 
----
+Use a disposable or backed-up Clink profile for cleanup tests. Live filtering does not prevent commands from executing, but cleanup changes the persisted history file.
 
-## 1. Automated Unit Tests
+## Automated baseline
 
-The automated test runner (`run_tests.lua`) executes the complete
-HistoryGuard test suite using a standard Lua interpreter, so **Clink is not
-required**.
-
-The test suite currently verifies:
-
-- Levenshtein distance calculations
-- Tokenization and string utilities
-- Keyboard-smash and punctuation detection
-- The complete HistoryGuard decision pipeline
-- Empty and blank-line handling
-- Executable discovery
-- Command cache generation
-- Configuration loading and reloading
-- Logger functionality
-- Integration scenarios
-- Stress and performance tests
-- Edge cases and boundary conditions
-- Suggestion quality
-- Fail-open error handling
-
-To run the suite:
+From `clinkkit\tests`:
 
 ```cmd
-cd clinkkit\tests
 lua run_tests.lua
 ```
 
-A successful run finishes with output similar to:
+The suite must finish with `0 failed`. The number of passing assertions is intentionally not fixed and may increase with coverage.
 
-```text
---------------------------------------------------
-ClinkKit Test Suite
-==================================================
-Running HistoryGuard Unit Tests...
---------------------------------------------------
-...
---------------------------------------------------
-Testing completed: 121 passed, 0 failed
---------------------------------------------------
-```
+## Load the scripts
 
-The exact number of passing tests may increase as new test cases are added,
-but **all tests should pass with 0 failures**.
+Install both `00_clinkkit.lua` and the `clinkkit` directory in your active Clink profile. Start a new CMD session or press `Ctrl-X`, then `Ctrl-R`.
 
----
-
-## 2. Manual Test Setup
-
-Enable debugging before running the integration tests:
+Confirm that settings are registered:
 
 ```cmd
-clink set lua.debug true
+clink set hg.max_distance
+clink set hg.strict_subcommands
+```
+
+For diagnostics:
+
+```cmd
 clink set hg.verbose_logging DEBUG
 ```
 
-Restart CMD (or press `Ctrl-X Ctrl-R`) so the updated settings and scripts
-are reloaded.
+After the current scripts have loaded, `clink set hg.* ...` applies the changed HistoryGuard configuration at the next prompt. The default Clink log is `%LOCALAPPDATA%\clink\clink.log`.
 
----
+## Live filtering
 
-## 3. Direct Pipeline Tests
+Run each command at an ordinary Clink prompt, then inspect history with `history`, `F7`, or reverse search.
 
-These tests verify the decision engine directly without modifying your
-command history.
+| Input | Expected execution | Expected history result |
+|---|---|---|
+| `git status` | Git runs normally. | Kept. |
+| `git stauts` | Git reports its usual error. | Excluded and suggests `git status` when `hg.max_distance` is at least `2`. |
+| `gitt status` | CMD reports its usual error. | Excluded, normally with a `git` suggestion. |
+| `;;;;` | CMD handles it normally. | Excluded as punctuation-only. |
+| `qqqqqq` | CMD reports its usual error. | Excluded as a keyboard smash. |
+| `cls` | CMD clears the screen. | Excluded silently because it is blacklisted by default. |
 
-Open the Lua debugger (`pause()` from any loaded script, or another Lua
-debug entry point) and run:
+The command must always execute. Only HistoryGuard's saved-history decision changes.
 
-```lua
-local evaluator = require("history_evaluator")
+## Typo settings and strict mode
 
-print(evaluator.evaluate_line("git status"))
-print(evaluator.evaluate_line("git stauts"))
-print(evaluator.evaluate_line("asdfasdf"))
-print(evaluator.evaluate_line("rg --help"))
-print(evaluator.evaluate_line("rg --hlep"))
-print(evaluator.evaluate_line(";;;;"))
-print(evaluator.evaluate_line("qqqqqq"))
-print(evaluator.evaluate_line("gitt status"))
-print(evaluator.evaluate_line("cls"))
+Set normal suggestion behavior:
+
+```cmd
+clink set hg.typo_detect true
+clink set hg.max_distance 2
 ```
 
-Expected results:
+`stauts` is a transposition of letters in `status`; standard Levenshtein distance treats it as two edits. With a distance of `1`, it is intentionally not treated as a typo.
 
-| Input | Expected Result |
-|--------|-----------------|
-| `git status` | `true` |
-| `git stauts` | `false`, `"subcommand-typo"`, `"git status"` |
-| `asdfasdf` | `false`, `"keyboard-smash"` |
-| `rg --help` | `true` |
-| `rg --hlep` | `false`, `"option-typo"`, `"rg --help"` |
-| `;;;;` | `false`, `"punctuation-only"` |
-| `qqqqqq` | `false`, `"keyboard-smash"` |
-| `gitt status` | `false`, `"unknown-executable"`, `"git"` |
-| `cls` | `false`, `"blacklisted"` |
+Enable strict subcommands:
 
-If any result differs:
-
-- Verify `hg.max_distance` (default: `2`).
-- Verify the command exists on your `PATH`.
-- Check the generated command cache.
-- Review `clink.log` with `hg.verbose_logging=DEBUG`.
-
----
-
-## 4. Live End-to-End Tests
-
-At a normal Clink prompt, execute the following commands and then inspect
-your history (`history` or `F7`).
-
-| Command Typed | Executes? | Saved to History? |
-|---------------|-----------|-------------------|
-| `git status` | ✅ Yes | ✅ Yes |
-| `git stauts` | ❌ Git reports unknown subcommand | ❌ No |
-| `asdfasdf` | ❌ CMD reports unknown command | ❌ No |
-| `rg --help` | ✅ Yes | ✅ Yes |
-| `rg --hlep` | ❌ Ripgrep reports invalid flag | ❌ No |
-| `;;;;` | ❌ CMD syntax error | ❌ No |
-| `cls` | ✅ Clears screen | ❌ No |
-
-Verify that HistoryGuard **never prevents the command from executing**.
-Only the history entry should be rejected.
-
----
-
-## 5. Cleanup Utility Tests
-
-1. Manually add several invalid commands to your `clink_history` file.
-
-2. Bind the cleanup command in `.inputrc`:
-
-```
-M-C-h: "luafunc:historyguard_run_cleanup"
+```cmd
+clink set hg.strict_subcommands true
 ```
 
-3. Press **Alt+Ctrl+H**, or run:
+Now run:
 
-```lua
-require("history_cleanup").run({
-    dry_run = true
-})
+```cmd
+git asdfgh
+git status
 ```
+
+The first command should be excluded as an unrecognized subcommand and the second should be kept. If you use Git aliases, external Git commands, or plugin commands, turn strict mode off and confirm those commands stay in history:
+
+```cmd
+clink set hg.strict_subcommands false
+```
+
+Turn off typo checks temporarily:
+
+```cmd
+clink set hg.typo_detect false
+```
+
+`git stauts` should now be kept unless another rule excludes it. Restore typo checking afterward:
+
+```cmd
+clink set hg.typo_detect true
+```
+
+## Cleanup
+
+Enable the cleanup hotkey:
+
+```cmd
+clink set hg.enable_cleanup true
+clink set hg.enable_cleanup_keybinding true
+```
+
+Reload scripts with `Ctrl-X`, then `Ctrl-R`. Press `Alt-Ctrl-H`.
 
 Verify that:
 
-- Invalid entries are reported.
-- Nothing is modified during a dry run.
+- A timestamped backup appears under `%LOCALAPPDATA%\clink\historyguard_backups\`.
+- Entries rejected by active cleanup rules are removed.
+- Exact duplicate entries are removed.
+- Valid entries remain and preserve their order.
 
-4. Run cleanup again without `dry_run`.
-
-Verify that:
-
-- A timestamped backup is created.
-- Invalid entries are removed.
-- Valid history entries remain untouched.
-- Entry ordering is preserved.
-
-5. Finally run:
-
-```cmd
-history compact
-```
-
-Verify that the history file is physically compacted and no deleted entries
-remain.
-
----
-
-## 6. Configuration Tests
-
-Disable unknown executable detection:
-
-```cmd
-clink set hg.unknown_exe false
-```
-
-Verify that commands such as:
-
-```cmd
-asdfasdf
-```
-
-are now written to history.
-
-Re-enable the setting afterward:
-
-```cmd
-clink set hg.unknown_exe true
-```
-
-Repeat similar tests for the remaining configuration options to ensure each
-feature can be independently enabled and disabled.
-
----
-
-## 7. Fail-Open Verification
-
-HistoryGuard is designed to **fail open**. Internal errors should never
-prevent the shell from functioning normally.
-
-Temporarily insert the following line at the beginning of
-`evaluate_line()` inside `history_evaluator.lua`:
+For a no-write test from a Lua debugging context:
 
 ```lua
-error("test")
+require("history_cleanup").run({ dry_run = true })
 ```
 
-Reload Clink and verify that:
+Verify the reported removals and confirm no backup or history-file write occurred.
 
-- Commands still execute normally.
-- Commands are still written to history.
-- A warning is logged to `clink.log`.
+### Full cleanup checks
 
-Remove the temporary test afterward.
+Enable the slow checks only when you want cleanup to evaluate them:
 
----
+```cmd
+clink set hg.cleanup_unknown_exe true
+clink set hg.cleanup_option_detect true
+```
 
-## Expected Result
+The first run may inspect executables and command help. Run the hotkey again without changing the history; unchanged entries should reuse the in-memory cleanup cache during the same CMD session.
 
-A successful verification should demonstrate that:
+## Fail-open behavior
 
-- All automated tests pass.
-- Valid commands are preserved.
-- Invalid commands are rejected from history.
-- Suggestions are generated correctly.
-- Cleanup removes previously stored invalid history entries.
-- Configuration options behave independently.
-- Any unexpected internal error causes HistoryGuard to fail open rather than interfere with the shell.
+Only in a disposable copy, temporarily add this as the first statement in `evaluate_line()` in `history_evaluator.lua`:
+
+```lua
+error("manual fail-open test")
+```
+
+Reload scripts and enter a normal command. Confirm that it still executes and is kept in history, with a warning in `clink.log`. Remove the temporary line and reload again.
