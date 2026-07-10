@@ -1,6 +1,5 @@
 <p align="center">
   <a href="https://github.com/max31337/ClinkKit">
-    <img src="light-banner.svg#gh-light-mode-only" width="700" alt="ClinkKit">
     <img src="dark-banner.svg#gh-dark-mode-only" width="700" alt="ClinkKit">
   </a>
 </p>
