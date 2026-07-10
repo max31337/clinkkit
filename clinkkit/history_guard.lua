@@ -83,6 +83,8 @@ local function on_history_event(line)
             logger.notice("HistoryGuard: didn't save to history (keyboard smash).")
         elseif reason == "unknown-executable" then
             logger.notice("HistoryGuard: didn't save to history (unrecognized command).")
+        elseif reason == "unknown-subcommand" then
+            logger.notice("HistoryGuard: didn't save to history (unrecognized subcommand).")
         else
             logger.notice("HistoryGuard: didn't save to history (" .. tostring(reason) .. ").")
         end

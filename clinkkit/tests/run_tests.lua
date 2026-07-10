@@ -455,6 +455,15 @@ assert_eq(keep1, true, "uppercase executable recognized")
 local keep2 = hg.evaluate_line("git STATUS")
 assert_eq(keep2, true, "uppercase subcommand recognized")
 
+-- Strict mode catches unrecognised subcommands even when there is no close
+-- spelling candidate, but must leave known subcommands untouched.
+config.strict_subcommands = true
+local strict_keep, strict_reason = hg.evaluate_line("git asdfgh")
+assert_eq(strict_keep, false, "strict mode rejects unknown subcommand")
+assert_eq(strict_reason, "unknown-subcommand", "strict mode uses the unknown-subcommand reason")
+assert_eq(hg.evaluate_line("git status"), true, "strict mode keeps known subcommand")
+config.strict_subcommands = false
+
 -- Flags should be case-insensitive
 local rg_cache = command_cache.get("rg")
 table.insert(rg_cache.flags, "--help")

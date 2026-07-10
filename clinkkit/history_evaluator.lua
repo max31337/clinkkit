@@ -115,6 +115,12 @@ local function evaluate_line(raw_line)
                 if suggestion and dist > 0 then
                     return false, "subcommand-typo", first_word .. " " .. suggestion
                 end
+                -- Strict mode is intentionally opt-in: many command line
+                -- tools support user-defined aliases, plugins, or external
+                -- subcommands that don't appear in their help output.
+                if config.strict_subcommands then
+                    return false, "unknown-subcommand"
+                end
             end
         end
     end

@@ -28,6 +28,9 @@ if not settings.get("hg.enable_cleanup") then
     settings.add("hg.subcmd_detect", true,
         "HG: reject subcommand typos")
 
+    settings.add("hg.strict_subcommands", false,
+        "HG: reject any unknown subcommand (may block aliases/extensions)")
+
     settings.add("hg.option_detect", true,
         "HG: reject flag/option typos")
 
@@ -98,6 +101,9 @@ function config.reload()
 
     config.enable_subcommand_detection         = settings.get("hg.subcmd_detect")
     if config.enable_subcommand_detection == nil then config.enable_subcommand_detection = true end
+
+    config.strict_subcommands                  = settings.get("hg.strict_subcommands")
+    if config.strict_subcommands == nil then config.strict_subcommands = false end
 
     config.enable_option_detection             = settings.get("hg.option_detect")
     if config.enable_option_detection == nil then config.enable_option_detection = true end
