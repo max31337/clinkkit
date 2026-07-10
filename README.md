@@ -1,8 +1,22 @@
 <div align="center">
-
-<div align="center">
   <a href="https://github.com/max31337/ClinkKit">
-    <img src="clinkkit-banner.svg" alt="ClinkKit" width="700">
+    <picture>
+      <!-- Dark mode -->
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcset="dark-banner.svg">
+
+      <!-- Light mode -->
+      <source
+        media="(prefers-color-scheme: light)"
+        srcset="light-banner.svg">
+
+      <!-- Fallback -->
+      <img
+        src="light-banner.svg"
+        alt="ClinkKit"
+        width="700">
+    </picture>
   </a>
 </div>
 
