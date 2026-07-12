@@ -8,27 +8,21 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest # Fixed: Changed from windows-latest to ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Lua
         uses: MunifTanjim/luver-action@v1
-
-      - name: Install Lua 5.4
-        shell: bash
-        run: |
-          luver install lua 5.4.7
-          luver use 5.4.7
+        with:
+          default: 5.4.7 # Optimized: Automatically sets up Lua 5.4.7
 
       - name: Verify Lua
-        shell: bash
         run: |
           lua -v
 
       - name: Run Tests
-        shell: bash
         run: |
           cd tests
           lua run_tests.lua
