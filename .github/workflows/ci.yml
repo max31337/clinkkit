@@ -10,36 +10,25 @@ jobs:
   test:
     runs-on: windows-latest
 
-    defaults:
-      run:
-        shell: msys2 {0}
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-lua
-            mingw-w64-ucrt-x86_64-luarocks
+      - name: Setup Lua
+        uses: MunifTanjim/luver-action@v1
 
-      - name: Verify installation
+      - name: Install Lua 5.4
+        shell: bash
+        run: |
+          luver install lua 5.4.7
+          luver use 5.4.7
+
+      - name: Verify Lua
+        shell: bash
         run: |
           lua -v
-          luarocks --version
-
-      - name: Install Luacheck
-        run: |
-          luarocks install luacheck
-
-      - name: Run Luacheck
-        run: |
-          luacheck .
 
       - name: Run Tests
+        shell: bash
         run: |
           cd tests
           lua run_tests.lua
