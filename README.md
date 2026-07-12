@@ -228,7 +228,7 @@ lua run_tests.lua
 
 The suite uses a standard Lua interpreter with mocked Clink APIs. The passing-assertion count can grow over time; success means it ends with `0 failed`.
 
-For end-to-end checks in a real Clink session, see [tests/manual_tests.md](tests/manual_tests.md).
+For end-to-end checks in a real Clink session, see [tests/manual_tests.md](clinkkit/tests/manual_tests.md).
 
 ## License
 
