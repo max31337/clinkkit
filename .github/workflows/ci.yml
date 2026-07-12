@@ -10,40 +10,40 @@ on:
 
 jobs:
   test:
-    name: Windows / Lua Tests
     runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Lua
-        shell: powershell
-        run: |
-          choco install lua -y
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            lua
+            lua-luarocks
+            mingw-w64-ucrt-x86_64-lua
+            mingw-w64-ucrt-x86_64-lua-luarocks
 
-      - name: Verify Lua installation
-        shell: powershell
+      - name: Verify Lua
         run: |
           lua -v
-
-      - name: Install LuaRocks
-        shell: powershell
-        run: |
-          choco install luarocks -y
+          luarocks --version
 
       - name: Install Luacheck
-        shell: powershell
         run: |
           luarocks install luacheck
 
       - name: Run Luacheck
-        shell: powershell
         run: |
           luacheck .
 
-      - name: Run Test Suite
-        shell: powershell
-        working-directory: tests
+      - name: Run Tests
         run: |
+          cd tests
           lua run_tests.lua
