@@ -35,6 +35,25 @@ local DISCOVERY = {
     choco  = { cmd = "choco --help 2>&1",       help_cmd = "choco --help 2>&1" },
 }
 
+-- Tools whose first non-option argument is a FILE/FOLDER PATH, not a
+-- subcommand (editors, pagers, etc.). These must never go through
+-- generic --help-based subcommand discovery: free-form help text for
+-- these tools routinely word-wraps a description onto its own indented
+-- line (e.g. "...compare two files with\n  each"), and extract_subcommands()
+-- can mistake that orphan word for a real subcommand. That false entry
+-- then makes any real path argument ("code .", "nvim main.go") look like
+-- an "unrecognized subcommand" once hg.strict_subcommands is enabled.
+--
+-- Add tools here, not to DISCOVERY, whenever "tool <path>" is a normal
+-- invocation and "tool <path>" is not "tool <subcommand>".
+local NO_SUBCOMMANDS = {
+    code    = true,
+    notepad = true,
+    vim     = true,
+    nvim    = true,
+    subl    = true,
+}
+
 --------------------------------------------------------------------------------
 local function cache_path(command)
     return CACHE_DIR .. "\\" .. command .. ".cache"
@@ -122,6 +141,12 @@ function command_cache.get(command, refresh_days)
 
     if mem_cache[command] then
         return mem_cache[command]
+    end
+
+    if NO_SUBCOMMANDS[command] then
+        local entry = { subcommands = {}, flags = {}, fetched_at = os.time() }
+        mem_cache[command] = entry
+        return entry
     end
 
     local disk = load_from_disk(command)

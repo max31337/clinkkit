@@ -70,6 +70,15 @@ if not settings.get("hg.enable_cleanup") then
         "HG: enable Alt-Ctrl-H keybinding for cleanup (requires Clink restart)")
 end
 
+-- Add settings introduced after the initial release for existing installs.
+-- The original group above is deliberately guarded to avoid duplicate
+-- registrations during a Lua reload, but that also means old profiles need a
+-- separate migration path for newly added settings.
+if settings.get("hg.strict_subcommands") == nil then
+    settings.add("hg.strict_subcommands", false,
+        "HG: reject any unknown subcommand (may block aliases/extensions)")
+end
+
 --------------------------------------------------------------------------------
 local function table_count(t)
     local n = 0

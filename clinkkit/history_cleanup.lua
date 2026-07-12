@@ -278,7 +278,10 @@ function history_cleanup.run(opts)
         end
     end
 
-    local wrote = utils.write_file(path, table.concat(out_lines, "\n") .. "\n")
+    local wrote = true
+    if not opts.dry_run then
+        wrote = utils.write_file(path, table.concat(out_lines, "\n") .. "\n")
+    end
 
     if not wrote then
         return {

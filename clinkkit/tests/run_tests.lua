@@ -50,7 +50,7 @@ local function assert_eq(actual, expected, msg)
         passed = passed + 1
     else
         failed = failed + 1
-        print(string.format("❌ FAIL: %s\n   Expected: %s\n   Actual:   %s", tostring(msg), tostring(expected), tostring(actual)))
+        print(string.format("FAIL: %s\n   Expected: %s\n   Actual:   %s", tostring(msg), tostring(expected), tostring(actual)))
     end
 end
 
@@ -247,24 +247,18 @@ assert_eq(keep, true, "whitelisted cargo with args is kept")
 
 -- TEST SUITE 15: Fail-Open Error Handling (mock exception)
 print("15. Testing fail-open error handling...")
--- Temporarily inject a broken config to test error resilience
-local original_evaluate = hg.evaluate_line
--- This would need actual exception injection; for now, verify it doesn't crash on odd input
 local keep = hg.evaluate_line(string.rep("a", 10000))  -- very long command
 assert_eq(keep ~= nil, true, "very long command doesn't crash (fail-open)")
 
 -- TEST SUITE 16: Executable Module
 print("16. Testing executable module...")
 local executable = require("executable")
--- These will depend on what's actually installed on the system
 local git_exists = executable.exists("git")
 assert_eq(git_exists ~= nil, true, "executable.exists() returns a value for git")
 
--- Test a definitely non-existent command
 local fake_exists = executable.exists("fakecmd12345xyz99")
 assert_eq(fake_exists, false, "executable.exists() returns false for non-existent command")
 
--- Test suggestion for typos (e.g., "gti" should suggest "git")
 local suggestion = executable.suggest("gti", 1)
 if suggestion ~= nil then
     assert_eq(suggestion == "git" or suggestion ~= nil, true, "executable.suggest() returns a suggestion or nil")
@@ -274,20 +268,17 @@ end
 print("17. Testing command cache module...")
 local command_cache = require("command_cache")
 
--- Get cache for a known command
 local git_cache = command_cache.get("git")
 assert_eq(git_cache ~= nil, true, "command_cache.get() returns a table")
 assert_eq(git_cache.subcommands ~= nil, true, "cache entry has subcommands field")
 assert_eq(git_cache.flags ~= nil, true, "cache entry has flags field")
 assert_eq(git_cache.fetched_at ~= nil, true, "cache entry has fetched_at timestamp")
 
--- Get cache for an unknown command (should return empty lists, not error)
 local unknown_cache = command_cache.get("fakecmd12345")
 assert_eq(unknown_cache ~= nil, true, "command_cache.get() fail-open: returns empty cache for unknown cmd")
 assert_eq(type(unknown_cache.subcommands), "table", "unknown command cache has empty subcommands table")
 assert_eq(type(unknown_cache.flags), "table", "unknown command cache has empty flags table")
 
--- Refresh cache for a command
 local refreshed = command_cache.refresh("git")
 assert_eq(refreshed ~= nil, true, "command_cache.refresh() returns a value")
 
@@ -295,7 +286,6 @@ assert_eq(refreshed ~= nil, true, "command_cache.refresh() returns a value")
 print("18. Testing logger module...")
 local logger = require("logger")
 
--- Test that logger methods exist and don't crash
 logger.debug("debug test: %s", "test")
 assert_eq(true, true, "logger.debug() doesn't crash")
 
@@ -311,42 +301,34 @@ assert_eq(true, true, "logger.notice() doesn't crash")
 -- TEST SUITE 19: Integration Scenarios (Complex Real-World Commands)
 print("19. Testing integration scenarios...")
 
--- Scenario 1: Valid complex command with multiple args
 local keep, reason = hg.evaluate_line("git commit -m \"fix: update parser\" --author=\"John Doe\"")
 assert_eq(keep, true, "complex git command with quotes and args is kept")
 
--- Scenario 2: Typo in command + valid args
 local keep, reason = hg.evaluate_line("gitt add .")
 assert_eq(keep, false, "typo in executable (gitt) is rejected")
 assert_eq(reason, "unknown-executable", "reason is unknown-executable")
 
--- Scenario 3: Valid command + subcommand typo
 local keep, reason = hg.evaluate_line("git staus")
 assert_eq(keep, false, "valid git + invalid subcommand rejected")
 assert_eq(reason, "subcommand-typo", "subcommand typo detected")
 
--- Scenario 4: Whitelisted command with random path
 local keep, reason = hg.evaluate_line("python /weird/path/to/script.py")
 assert_eq(keep, true, "whitelisted python bypasses unknown-exe check")
 
--- Scenario 5: Blacklisted command with arguments
 local keep, reason = hg.evaluate_line("cls && echo hello")
 assert_eq(keep, false, "blacklisted cls is rejected even with args")
 
 -- TEST SUITE 20: Stress Tests (Large/Pathological Inputs)
 print("20. Testing stress cases...")
 
--- Very long command line
 local long_cmd = "git commit -m \"" .. string.rep("x", 1000) .. "\""
 local keep = hg.evaluate_line(long_cmd)
 assert_eq(keep ~= nil, true, "very long command (1000+ chars) handled gracefully")
 
--- Command with many arguments
 local many_args = "cargo test " .. string.rep("arg1 arg2 arg3 ", 50)
 local keep = hg.evaluate_line(many_args)
 assert_eq(keep ~= nil, true, "command with 150+ args handled gracefully")
 
--- Nested quotes
 local nested = "git commit -m \"outer 'inner' outer\""
 local keep = hg.evaluate_line(nested)
 assert_eq(keep ~= nil, true, "nested quotes don't crash tokenizer")
@@ -354,11 +336,9 @@ assert_eq(keep ~= nil, true, "nested quotes don't crash tokenizer")
 -- TEST SUITE 21: Levenshtein Edge Cases (Performance)
 print("21. Testing Levenshtein distance performance...")
 
--- Very similar long strings
 local dist1 = levenshtein.distance(string.rep("a", 100) .. "b", string.rep("a", 100) .. "c")
 assert_eq(dist1, 1, "long strings with 1-char difference")
 
--- Very dissimilar strings
 local dist2 = levenshtein.distance(string.rep("a", 50), string.rep("b", 50))
 assert_eq(dist2, 50, "completely different 50-char strings")
 
@@ -373,7 +353,6 @@ assert_eq(distance <= 2, true, "distance is within max_distance")
 -- TEST SUITE 23: Config Edge Cases
 print("23. Testing config edge cases...")
 
--- Whitelist and blacklist parsing
 local config_backup_whitelist = config.whitelist
 local config_backup_blacklist = config.blacklist
 
@@ -386,39 +365,37 @@ assert_eq(config.whitelist["go"] ~= nil, true, "whitelist has multiple entries")
 assert_eq(config.blacklist["cls"] ~= nil, true, "blacklist parsing works")
 assert_eq(config.blacklist["exit"] ~= nil, true, "blacklist has multiple entries")
 
--- Empty whitelist/blacklist
 settings_store["hg.whitelist"] = ""
 settings_store["hg.blacklist"] = ""
 config.reload()
 assert_eq(table_count(config.whitelist), 0, "empty whitelist results in empty table")
 assert_eq(table_count(config.blacklist), 0, "empty blacklist results in empty table")
 
+-- Restore whitelist/blacklist so later suites aren't testing against a
+-- config state this test suite itself broke and never cleaned up.
+settings_store["hg.whitelist"] = "git,go,cargo,python,py,node,npm,pnpm,yarn,dotnet,code,nvim,vim,rg,fd,docker,kubectl,gh,clink"
+settings_store["hg.blacklist"] = "cls,history,exit,clear"
+config.reload()
+
 -- TEST SUITE 24: Boundary Cases
 print("24. Testing boundary cases...")
 
--- Single character command
 local keep, reason = hg.evaluate_line("x")
 assert_eq(keep ~= nil, true, "single char command handled")
 
--- Command that's a number
 local keep, reason = hg.evaluate_line("123")
 assert_eq(keep ~= nil, true, "numeric-only input handled")
 
--- Command with special Windows chars
 local keep, reason = hg.evaluate_line("dir \\path\\to\\file")
 assert_eq(keep ~= nil, true, "backslashes don't crash")
 
 -- TEST SUITE 25: Utils Module - Advanced
 print("25. Testing utils module advanced cases...")
 
--- Path splitting
 local paths = utils.split_path("C:\\path1;C:\\path2;C:\\path3", ";")
 assert_eq(#paths, 3, "path splitting works")
 assert_eq(paths[1], "C:\\path1", "first path is correct")
 
--- File I/O (mock - won't actually write)
-local test_content = "test content"
--- Can't fully test without mocking filesystem, but verify functions exist
 assert_eq(type(utils.read_file), "function", "read_file function exists")
 assert_eq(type(utils.write_file), "function", "write_file function exists")
 assert_eq(type(utils.ensure_dir), "function", "ensure_dir function exists")
@@ -436,13 +413,11 @@ assert_eq(utils.is_keyboard_smash("zzzzzzzzzz"), true, "long repetition detected
 -- TEST SUITE 27: Suggestion Quality (Verify Distances)
 print("27. Testing suggestion quality/distance...")
 
--- Create a controlled set of commands to test
 local test_candidates = {"commit", "checkout", "cherry-pick", "config"}
 local closest, dist = levenshtein.closest("comit", test_candidates, 2)
 assert_eq(closest, "commit", "closest match is 'commit'")
 assert_eq(dist, 1, "distance to 'commit' is 1")
 
--- Test with a word closer to checkout
 local closest2, dist2 = levenshtein.closest("checkut", test_candidates, 2)
 assert_eq(closest2, "checkout", "closest match to 'checkut' is 'checkout'")
 assert_eq(dist2, 1, "distance to 'checkout' is 1")
@@ -460,16 +435,12 @@ assert_eq(#words2, 3, "python -c and quoted code = 3 tokens")
 -- TEST SUITE 29: Case Sensitivity in Different Contexts
 print("29. Testing case sensitivity contexts...")
 
--- Executable names should be case-insensitive
 local keep1 = hg.evaluate_line("GIT status")
 assert_eq(keep1, true, "uppercase executable recognized")
 
--- Subcommands should be case-insensitive
 local keep2 = hg.evaluate_line("git STATUS")
 assert_eq(keep2, true, "uppercase subcommand recognized")
 
--- Strict mode catches unrecognised subcommands even when there is no close
--- spelling candidate, but must leave known subcommands untouched.
 config.strict_subcommands = true
 local strict_keep, strict_reason = hg.evaluate_line("git asdfgh")
 assert_eq(strict_keep, false, "strict mode rejects unknown subcommand")
@@ -477,7 +448,6 @@ assert_eq(strict_reason, "unknown-subcommand", "strict mode uses the unknown-sub
 assert_eq(hg.evaluate_line("git status"), true, "strict mode keeps known subcommand")
 config.strict_subcommands = false
 
--- Flags should be case-insensitive
 local rg_cache = command_cache.get("rg")
 table.insert(rg_cache.flags, "--help")
 local keep3 = hg.evaluate_line("rg --HELP")
@@ -486,13 +456,102 @@ assert_eq(keep3, true, "uppercase flag recognized")
 -- TEST SUITE 30: Fail-Open Comprehensive
 print("30. Testing comprehensive fail-open behavior...")
 
--- Settings with nil/bad values
 config.max_distance = nil
 local keep, reason = hg.evaluate_line("git statos")
 assert_eq(keep ~= nil, true, "missing max_distance doesn't crash")
 
--- Restore
 config.max_distance = 2
+
+config.enable_typo_detection = false
+local typo_off_keep = hg.evaluate_line("git statos")
+assert_eq(typo_off_keep, true, "master typo switch disables subcommand checks")
+config.enable_typo_detection = true
+
+-- TEST SUITE 31: OSA Transposition + Exact-Match Guard (levenshtein.lua update)
+print("31. Testing OSA transposition distance and exact-match guard...")
+
+-- Adjacent transposition should cost 1, not 2 (this is the whole point of OSA)
+assert_eq(levenshtein.distance("stauts", "status"), 1, "stauts -> status transposition costs 1")
+assert_eq(levenshtein.distance("hlep", "help"), 1, "hlep -> help transposition costs 1")
+assert_eq(levenshtein.distance("teh", "the"), 1, "teh -> the transposition costs 1")
+
+-- allow_transposition = false should fall back to plain Levenshtein (cost 2)
+assert_eq(levenshtein.distance("stauts", "status", false, false), 2, "transposition disabled falls back to cost 2")
+
+-- Exact-match guard: word already in candidates -> must never suggest a "correction"
+local exact_candidates = {"status", "add", "commit", "push"}
+local m1, d1 = levenshtein.closest("status", exact_candidates, 2)
+assert_eq(m1, nil, "closest() returns nil when word is already an exact candidate")
+
+local m1b, d1b = levenshtein.closest("STATUS", exact_candidates, 2)
+assert_eq(m1b, nil, "closest() exact-match guard is case-insensitive")
+
+-- Typo of an exact-list word should still resolve normally
+local m2, d2 = levenshtein.closest("stauts", exact_candidates, 2)
+assert_eq(m2, "status", "closest() still finds 'status' for a real typo")
+assert_eq(d2, 1, "distance for 'stauts' -> 'status' is 1 via closest()")
+
+-- End-to-end through the real pipeline: git subcommand transposition typo
+local keep, reason, suggestion = hg.evaluate_line("git stauts")
+assert_eq(keep, false, "git stauts (transposition typo) is rejected")
+assert_eq(reason, "subcommand-typo", "git stauts reason is subcommand-typo")
+assert_eq(suggestion, "git status", "git stauts suggests 'git status'")
+
+-- TEST SUITE 32: NO_SUBCOMMANDS Path-Argument Bypass (Regression)
+-- Real-world bug report:
+--   ~max31337 {clinkkit} main
+--   > code .
+--   HistoryGuard: didn't save to history (unrecognized subcommand).
+--
+-- command_cache.NO_SUBCOMMANDS exists specifically so path-taking tools
+-- (code, notepad, vim, nvim, subl) never go through subcommand-typo /
+-- unknown-subcommand checks, since their first argument is a FILE/FOLDER
+-- PATH, not a subcommand. "code .", "nvim main.go", etc. must always be
+-- kept, both in the default pipeline and under strict_subcommands, since
+-- that's the exact mode the bug report was filed against.
+--
+-- Only whitelisted NO_SUBCOMMANDS tools (code, nvim, vim) are exercised
+-- here. notepad/subl aren't in the default whitelist, so testing them
+-- would exercise the unrelated, platform-dependent unknown-executable /
+-- executable.exists() path instead of the subcommand bypass this suite
+-- targets.
+print("32. Testing NO_SUBCOMMANDS path-argument bypass (code ., nvim file, etc.)...")
+
+local keep, reason = hg.evaluate_line("code .")
+assert_eq(keep, true, "'code .' is kept (path arg, not a subcommand)")
+assert_eq(reason ~= "unknown-subcommand", true, "'code .' is not rejected as unknown-subcommand")
+
+local keep, reason = hg.evaluate_line("code main.go")
+assert_eq(keep, true, "'code main.go' is kept (path arg, not a subcommand)")
+
+local keep, reason = hg.evaluate_line("nvim main.go")
+assert_eq(keep, true, "'nvim main.go' is kept (path arg, not a subcommand)")
+
+local keep, reason = hg.evaluate_line("vim /path/to/file.txt")
+assert_eq(keep, true, "'vim /path/to/file.txt' is kept (path arg, not a subcommand)")
+
+-- Same commands again, but with strict_subcommands enabled -- this is the
+-- exact configuration under which the real-world false rejection occurred.
+config.strict_subcommands = true
+
+local keep, reason = hg.evaluate_line("code .")
+assert_eq(keep, true, "'code .' is kept under strict_subcommands (regression: was 'unrecognized subcommand')")
+assert_eq(reason ~= "unknown-subcommand", true, "'code .' is not rejected as unknown-subcommand under strict mode")
+
+local keep, reason = hg.evaluate_line("nvim main.go")
+assert_eq(keep, true, "'nvim main.go' is kept under strict_subcommands")
+
+local keep, reason = hg.evaluate_line("vim file.txt")
+assert_eq(keep, true, "'vim file.txt' is kept under strict_subcommands")
+
+config.strict_subcommands = false
+
+-- Sanity check: NO_SUBCOMMANDS commands should still report an empty
+-- subcommand list from the cache (that's *why* they must be exempted from
+-- the subcommand checks in the first place).
+local code_cache = command_cache.get("code")
+assert_eq(type(code_cache.subcommands), "table", "'code' cache entry has a subcommands table")
+assert_eq(#code_cache.subcommands, 0, "'code' cache entry has zero subcommands (NO_SUBCOMMANDS tool)")
 
 print("--------------------------------------------------")
 print(string.format("Testing completed: %d passed, %d failed", passed, failed))
