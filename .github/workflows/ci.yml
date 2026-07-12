@@ -8,27 +8,25 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest # Kept Windows for your Clink extension
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # Required step by leafo action to build Lua on Windows using MSVC compiler
       - name: Setup MSVC Developer Command Prompt
         uses: step-security/msvc-dev-cmd@v1 
 
-      # Replaced luver with leafo, which natively compiles Lua on Windows
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "5.4.7"
 
-      # Windows runner defaults to PowerShell, so we run the test command using explicit shells if needed
       - name: Verify Lua
         run: |
           lua -v
 
       - name: Run Tests
+        # Corrected: Explicitly maps the entire path from your root repository layout
+        working-directory: ./clinkkit/tests
         run: |
-          cd tests
           lua run_tests.lua
