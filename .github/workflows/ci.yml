@@ -1,27 +1,49 @@
-name: CI
+name: Continuous Integration
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - dev
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
+    name: Windows / Lua Tests
     runs-on: windows-latest
 
-    strategy:
-      matrix:
-        lua-version:
-          - "5.1"
-          - "5.4"
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: leafo/gh-actions-lua@v11
-        with:
-          luaVersion: ${{ matrix.lua-version }}
+      - name: Install Lua
+        shell: powershell
+        run: |
+          choco install lua -y
 
-      - name: Run tests
+      - name: Verify Lua installation
+        shell: powershell
+        run: |
+          lua -v
+
+      - name: Install LuaRocks
+        shell: powershell
+        run: |
+          choco install luarocks -y
+
+      - name: Install Luacheck
+        shell: powershell
+        run: |
+          luarocks install luacheck
+
+      - name: Run Luacheck
+        shell: powershell
+        run: |
+          luacheck .
+
+      - name: Run Test Suite
+        shell: powershell
         working-directory: tests
-        run: lua run_tests.lua
+        run: |
+          lua run_tests.lua
