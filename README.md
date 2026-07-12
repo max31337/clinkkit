@@ -36,6 +36,8 @@ HistoryGuard does not block or rewrite command execution. CMD and the invoked pr
 - Cleans existing persisted history, with backups, duplicate removal, dry runs, and an optional `Alt-Ctrl-H` shortcut.
 - Fails open: an internal HistoryGuard error keeps the history entry rather than disrupting your shell.
 
+Today, exclusion is name-based: `hg.blacklist` matches whole command names (e.g. `history`, `cls`). HistoryGuard does not yet inspect the full argument text of a line, so it cannot currently tell that a command *contains* something sensitive — see **Sensitive-data protection (planned)** below.
+
 ### Decision order
 
 For each accepted input line, HistoryGuard checks:
@@ -164,12 +166,21 @@ Command-help discovery is cached on disk under `%LOCALAPPDATA%\clink\historyguar
 - Keyboard-smash detection is intentionally conservative. Unknown-executable detection is the broader protection for names such as `asdf`.
 - A large `hg.max_distance` makes more distant suggestions possible but costs more comparison work. Prefer strict mode for rejecting unrelated subcommands.
 - Cleanup writes Clink's documented history format directly. Keep the automatic backups and re-test after a major Clink upgrade.
+- HistoryGuard does not currently scan argument content for secrets. A command that embeds a password, API key, or token is saved to history as long as the command name itself is not blacklisted — see the planned sensitive-data protection below.
 
 ## Project roadmap
 
 ClinkKit is intentionally broader than HistoryGuard. HistoryGuard is the first module and current entry point; it will eventually become one independently loadable feature among several.
 
-Planned modules include:
+### HistoryGuard enhancements (planned)
+
+- **Sensitive-data protection** — detect likely passwords, API keys, access tokens, connection strings, and other secrets appearing anywhere in a command line (not just the command name) and exclude the line from history, even when the command itself is not blacklisted.
+- Configurable, pattern/regex-based secret detectors with a way to add custom patterns for project- or vendor-specific token formats.
+- An allowlist/denylist for known false positives (e.g. long hashes or IDs that aren't secrets).
+- Optional redaction mode: keep a redacted version of the command in history (with the secret portion masked) instead of dropping the entry entirely.
+- Applies to both the live per-command check and the `history_cleanup` pass, so existing history can be scrubbed of secrets already saved before this feature existed.
+
+### Planned modules
 
 - **Aliases**
   - User-defined aliases
