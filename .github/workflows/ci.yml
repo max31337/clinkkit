@@ -2,9 +2,7 @@ name: Continuous Integration
 
 on:
   push:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -17,20 +15,18 @@ jobs:
         shell: msys2 {0}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
+          msystem: UCRT64
           update: true
           install: >-
-            lua
-            lua-luarocks
             mingw-w64-ucrt-x86_64-lua
-            mingw-w64-ucrt-x86_64-lua-luarocks
+            mingw-w64-ucrt-x86_64-luarocks
 
-      - name: Verify Lua
+      - name: Verify installation
         run: |
           lua -v
           luarocks --version
